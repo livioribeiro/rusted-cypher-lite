@@ -1,0 +1,19 @@
+[package]
+name = "rusted_cypher"
+version = "0.7.1"
+authors = ["Livio Ribeiro <livioribeiro@outlook.com>"]
+description = "Send cypher queries to a neo4j database"
+repository = "https://github.com/livioribeiro/rusted-cypher"
+homepage = "https://github.com/livioribeiro/rusted-cypher"
+documentation = "http://livioribeiro.github.io/rusted_cypher/rusted_cypher/"
+readme = "README.md"
+keywords = ["neo4j", "database", "query", "cypher", "graph"]
+license = "MIT"
+
+[dependencies]
+hyper = "0.6"
+url = "0.2"
+rustc-serialize = "0.3"
+semver = "0.1"
+time = "0.1"
+log = "0.3"
