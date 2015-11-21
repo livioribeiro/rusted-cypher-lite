@@ -32,6 +32,10 @@ pub struct CypherResult<T: Decodable> {
 }
 
 impl<T: Decodable> CypherResult<T> {
+    pub fn columns(&self) -> &Vec<String> {
+        &self.columns
+    }
+    
     /// Returns an iterator over the rows of the result
     pub fn rows(&self) -> &Vec<RowResult<T>> {
         &self.data

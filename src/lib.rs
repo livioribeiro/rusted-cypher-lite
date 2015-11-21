@@ -28,37 +28,31 @@
 //! ## Performing Queries
 //!
 //! ```
-//! # use rusted_cypher::GraphClient;
-//! # use rusted_cypher::cypher::Statement;
+//! # use rusted_cypher::{GraphClient, Statement, CypherResult};
 //! # let graph = GraphClient::connect("http://neo4j:neo4j@localhost:7474/db/data").unwrap();
-//! let mut query = graph.cypher().query();
-//!
 //! // Statement implements From<&str>
-//! query.add_statement(
-//!     "CREATE (n:LANG { name: 'Rust', level: 'low', safe: true })");
-//!
-//! let statement = Statement::new(
-//!     "CREATE (n:LANG { name: 'C++', level: 'low', safe: {safeness} })")
-//!     .with_param("safeness", false);
-//!
-//! query.add_statement(statement);
-//!
-//! query.send().unwrap();
-//!
 //! graph.cypher().exec(
-//!     "CREATE (n:LANG { name: 'Python', level: 'high', safe: true })")
-//!     .unwrap();
+//!		"CREATE (n:LANG { name: 'Rust', level: 'low', safe: true })"
+//!	).unwrap();
 //!
-//! let result = graph.cypher().exec(
-//!     "MATCH (n:LANG) RETURN n.name, n.level, n.safe")
-//!     .unwrap();
+//!	let statement = Statement::new(
+//!		"CREATE (n:LANG { name: {name}, level: {level}, safe: {safe} })")
+//!		.with_param("name", "Python".to_owned())
+//!		.with_param("level", "high".to_owned())
+//!		.with_param("safe", true);
 //!
-//! assert_eq!(result.data.len(), 3);
+//! graph.cypher().exec(statement).unwrap();
+//!
+//! let result: CypherResult<(String, String, bool)> = graph.cypher().query(
+//!     "MATCH (n:LANG) RETURN n.name, n.level, n.safe"
+//!	).unwrap();
+//!
+//! assert_eq!(result.rows().len(), 2);
 //!
 //! for row in result.rows() {
-//!     let name: String = row.get("n.name").unwrap();
-//!     let level: String = row.get("n.level").unwrap();
-//!     let safeness: bool = row.get("n.safe").unwrap();
+//!     let ref name = row.0;
+//!     let ref level = row.1;
+//!     let safeness = row.2;
 //!     println!("name: {}, level: {}, safe: {}", name, level, safeness);
 //! }
 //!
@@ -67,10 +61,9 @@
 //!
 //! ## With Transactions
 //!
-//! ```
+//! ```ignore
 //! # use std::collections::BTreeMap;
-//! # use rusted_cypher::GraphClient;
-//! # use rusted_cypher::cypher::Statement;
+//! # use rusted_cypher::{GraphClient, Statement, CypherResult};
 //! # let graph = GraphClient::connect("http://neo4j:neo4j@localhost:7474/db/data").unwrap();
 //! let transaction = graph.cypher().transaction()
 //!     .with_statement("CREATE (n:IN_TRANSACTION { name: 'Rust', level: 'low', safe: true })");
@@ -97,7 +90,7 @@
 //!
 //! There is a macro to help building statements
 //!
-//! ```
+//! ```ignore
 //! # #[macro_use] extern crate rusted_cypher;
 //! # use rusted_cypher::GraphClient;
 //! # use rusted_cypher::cypher::Statement;
@@ -140,3 +133,4 @@ pub mod error;
 
 pub use graph::GraphClient;
 pub use cypher::Statement;
+pub use cypher::CypherResult;
