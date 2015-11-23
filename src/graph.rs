@@ -115,7 +115,6 @@ impl GraphClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ::cypher::result::CypherResult;
 
     const URL: &'static str = "http://neo4j:neo4j@localhost:7474/db/data";
 
@@ -131,24 +130,21 @@ mod tests {
     fn query() {
         let graph = GraphClient::connect(URL).unwrap();
 
-        let result: CypherResult<()> = graph.cypher().query("MATCH n RETURN n").unwrap();
-
-        assert_eq!(result.columns().len(), 1);
-        assert_eq!(result.columns()[0], "n");
+        graph.cypher().exec::<()>("MATCH (n:GRAPH_QUERY) RETURN n".into()).unwrap();
     }
 
     // #[test]
     // fn transaction() {
     //     let graph = GraphClient::connect(URL).unwrap();
-
+    //
     //     let (transaction, result) = graph.cypher().transaction()
     //         .with_statement("MATCH n RETURN n")
     //         .begin()
     //         .unwrap();
-
+    //
     //     assert_eq!(result[0].columns.len(), 1);
     //     assert_eq!(result[0].columns[0], "n");
-
+    //
     //     transaction.rollback().unwrap();
     // }
 }

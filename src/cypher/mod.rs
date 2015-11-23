@@ -131,8 +131,8 @@ impl Cypher {
         }
     }
 
-    fn send_query<T: Decodable, S: Into<Statement>>(&self, statement: S)
-        -> Result<QueryResult<T>, GraphError>
+    pub fn exec<T: Decodable = ()>(&self, statement: Statement)
+        -> Result<Vec<T>, GraphError>
     {
         let endpoint = format!("{}/{}", &self.endpoint, "commit");
         let mut res = try!(send_query(&self.client,
@@ -140,30 +140,16 @@ impl Cypher {
                                       &self.headers,
                                       Some(statement.into())));
 
-        let result: QueryResult<T> = try!(parse_response(&mut res));
+        let mut result: QueryResult<T> = try!(parse_response(&mut res));
         if result.errors().len() > 0 {
             return Err(GraphError::new_neo4j_error(result.errors().clone()))
         }
 
-        Ok(result)
-    }
+        let results = result.results.pop().map(|result| {
+            result.data.into_iter().map(|result| result.row).collect()
+        }).unwrap_or(Vec::new());
 
-    /// Executes the given `Statement`, returning the results
-    ///
-    /// Parameter can be anything that implements `Into<Statement>`, `&str` or `Statement` itself
-    pub fn query<T: Decodable, S: Into<Statement>>(&self, statement: S)
-        -> Result<CypherResult<T>, GraphError>
-    {
-        let mut result: QueryResult<T> = try!(self.send_query(statement));
-
-        result.results.pop().ok_or(GraphError::new("No results returned from server"))
-    }
-
-    /// Execute the given statement
-    pub fn exec<S: Into<Statement>>(&self, statement: S) -> Result<(), GraphError> {
-        let _: QueryResult<()> = try!(self.send_query(statement));
-
-        Ok(())
+        Ok(results)
     }
 
     /// Creates a new `Transaction`
@@ -196,10 +182,7 @@ mod tests {
 
     #[test]
     fn query_without_params() {
-        let result: CypherResult<()> = get_cypher().query("MATCH (n:TEST_CYPHER) RETURN n").unwrap();
-
-        assert_eq!(result.columns().len(), 1);
-        assert_eq!(result.columns()[0], "n");
+        get_cypher().exec::<()>("MATCH (n:TEST_CYPHER) RETURN n".into()).unwrap();
     }
 
     #[test]
@@ -207,10 +190,7 @@ mod tests {
         let statement = Statement::new("MATCH (n:TEST_CYPHER {name: {name}}) RETURN n")
             .with_param("name", "Neo".to_owned());
 
-        let result: CypherResult<()> = get_cypher().query(statement).unwrap();
-
-        assert_eq!(result.columns().len(), 1);
-        assert_eq!(result.columns()[0], "n");
+        let _ = get_cypher().exec::<()>(statement).unwrap();
     }
 
     #[test]
@@ -218,10 +198,7 @@ mod tests {
         let statement = Statement::new("MATCH (n:TEST_CYPHER {value: {value}}) RETURN n")
             .with_param("value", 42);
 
-        let result: CypherResult<()> = get_cypher().query(statement).unwrap();
-
-        assert_eq!(result.columns().len(), 1);
-        assert_eq!(result.columns()[0], "n");
+        let _ = get_cypher().exec::<()>(statement).unwrap();
     }
 
     #[test]
@@ -255,16 +232,15 @@ mod tests {
         let statement = Statement::new("CREATE (n:TEST_CYPHER_COMPLEX_PARAM {p})")
             .with_param("p", complex_param.clone());
 
-        cypher.exec(statement).unwrap();
+        cypher.exec::<()>(statement).unwrap();
 
-        let result: CypherResult<(ComplexType,)> = cypher.query("MATCH (n:TEST_CYPHER_COMPLEX_PARAM) RETURN n").unwrap();
-        let row = result.rows().first().unwrap();
+        let result: Vec<(ComplexType,)> = cypher.exec("MATCH (n:TEST_CYPHER_COMPLEX_PARAM) RETURN n".into()).unwrap();
 
-        let ref complex_result = row.data().0;
+        let ref complex_result = result[0].0;
         assert_eq!(complex_result.name, "Complex");
         assert_eq!(complex_result.value, 42);
 
-       cypher.exec("MATCH (n:TEST_CYPHER_COMPLEX_PARAM) DELETE n").unwrap();
+        cypher.exec::<()>("MATCH (n:TEST_CYPHER_COMPLEX_PARAM) DELETE n".into()).unwrap();
     }
 
     #[test]
@@ -274,8 +250,6 @@ mod tests {
             .with_param("name", "Neo".to_owned())
             .with_param("value", 42);
 
-        let result: CypherResult<()> = get_cypher().query(statement).unwrap();
-        assert_eq!(result.columns().len(), 1);
-        assert_eq!(result.columns()[0], "n");
+        get_cypher().exec::<()>(statement).unwrap();
     }
 }
