@@ -133,18 +133,14 @@ mod tests {
         graph.cypher().exec::<()>("MATCH (n:GRAPH_QUERY) RETURN n".into()).unwrap();
     }
 
-    // #[test]
-    // fn transaction() {
-    //     let graph = GraphClient::connect(URL).unwrap();
-    //
-    //     let (transaction, result) = graph.cypher().transaction()
-    //         .with_statement("MATCH n RETURN n")
-    //         .begin()
-    //         .unwrap();
-    //
-    //     assert_eq!(result[0].columns.len(), 1);
-    //     assert_eq!(result[0].columns[0], "n");
-    //
-    //     transaction.rollback().unwrap();
-    // }
+    #[test]
+    fn transaction() {
+        let graph = GraphClient::connect(URL).unwrap();
+
+        let (transaction, _) = graph.cypher().transaction()
+            .begin::<()>(Some("MATCH (n:GRAPH_TRANSACTION) RETURN n".into()))
+            .unwrap();
+
+        transaction.rollback().unwrap();
+    }
 }

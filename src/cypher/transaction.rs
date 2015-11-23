@@ -173,7 +173,7 @@ impl<'a> Transaction<'a, Created> {
     ///
     /// Consumes the `Transaction<Created>` and returns the a `Transaction<Started>` alongside with
     /// the results of any `Statement` sent.
-    pub fn begin<T: Decodable, S: Into<Statement>>(self, statement: Option<S>)
+    pub fn begin<T: Decodable>(self, statement: Option<Statement>)
         -> Result<(Transaction<'a, Started>, Vec<T>), GraphError>
     {
         debug!("Beginning transaction");
@@ -211,12 +211,14 @@ impl<'a> Transaction<'a, Created> {
         let results = result.results.pop().map(|result| {
             result.data.into_iter().map(|result| result.row).collect()
         }).unwrap_or(Vec::new());
+        
         Ok((transaction, results))
     }
 }
 
 impl<'a> Transaction<'a, Started> {
-    fn send_query<T: Decodable, S: Into<Statement>>(&mut self, statement: S)
+    /// Executes the given `Statement`
+    pub fn exec<T: Decodable>(&mut self, statement: Statement)
         -> Result<Vec<T>, GraphError>
     {
         let mut res = try!(super::send_query(&self.client,
@@ -234,29 +236,12 @@ impl<'a> Transaction<'a, Started> {
         let results = result.results.pop().map(|result| {
             result.data.into_iter().map(|result| result.row).collect()
         }).unwrap_or(Vec::new());
+
         Ok(results)
     }
 
-    /// Executes the given `Statement`, returning the results
-    ///
-    /// Parameter can be anything that implements `Into<Statement>`, `&str` or `Statement` itself
-    pub fn query<T: Decodable, S: Into<Statement>>(&mut self, statement: S)
-        -> Result<Vec<T>, GraphError>
-    {
-        let result: Vec<T> = try!(self.send_query(statement));
-
-        Ok(result)
-    }
-
-    /// Execute the given statement
-    pub fn exec<S: Into<Statement>>(&mut self, statement: S) -> Result<(), GraphError> {
-        let _: Vec<()> = try!(self.send_query(statement));
-
-        Ok(())
-    }
-
     /// Commits the transaction, returning the results
-    pub fn commit<T: Decodable, S: Into<Statement>>(self, statement: Option<S>)
+    pub fn commit<T: Decodable>(self, statement: Option<Statement>)
         -> Result<Vec<T>, GraphError>
     {
         debug!("Commiting transaction {}", self.transaction);
@@ -273,6 +258,7 @@ impl<'a> Transaction<'a, Started> {
         let results = result.results.pop().map(|result| {
             result.data.into_iter().map(|result| result.row).collect()
         }).unwrap_or(Vec::new());
+
         Ok(results)
     }
 
@@ -292,7 +278,7 @@ impl<'a> Transaction<'a, Started> {
     ///
     /// All transactions have a timeout. Use this method to keep a transaction alive.
     pub fn reset_timeout(&mut self) -> Result<(), GraphError> {
-        try!(self.exec(""));
+        try!(self.exec::<()>("".into()));
         Ok(())
     }
 }
@@ -319,25 +305,25 @@ mod tests {
         headers
     }
 
-    // #[test]
-    // fn begin_transaction() {
-    //     let headers = get_headers();
-    //     let transaction = Transaction::new(URL, &headers);
-    //     let result: (Transaction<Started>, Option<CypherResult<()>>) = transaction.begin(None).unwrap();
-    //     assert_eq!(result.1.unwrap().rows().len(), 0);
-    // }
+    #[test]
+    fn begin_transaction() {
+        let headers = get_headers();
+        let transaction = Transaction::new(URL, &headers);
+        transaction.begin::<()>(None).unwrap();
+    }
 
     #[test]
     fn create_node_and_commit() {
         let headers = get_headers();
 
         Transaction::new(URL, &headers)
-            .begin::<(), &str>(Some("CREATE (n:TEST_TRANSACTION_CREATE_COMMIT { name: 'Rust', safe: true })"))
+            .begin::<()>(Some("CREATE (n:TEST_TRANSACTION_CREATE_COMMIT { name: 'Rust', safe: true })".into()))
             .unwrap()
-            .0.commit::<(), &str>(None).unwrap();
+            .0.commit::<()>(None)
+            .unwrap();
 
-        let (transaction, results): (_, Vec<(String,)>) = Transaction::new(URL, &headers)
-            .begin(Some("MATCH (n:TEST_TRANSACTION_CREATE_COMMIT) RETURN n.name"))
+        let (transaction, results) = Transaction::new(URL, &headers)
+            .begin::<(String,)>(Some("MATCH (n:TEST_TRANSACTION_CREATE_COMMIT) RETURN n.name".into()))
             .unwrap();
 
         assert_eq!(results.len(), 1);
@@ -345,49 +331,50 @@ mod tests {
         transaction.rollback().unwrap();
 
         Transaction::new(URL, &headers)
-            .begin::<(), &str>(Some("MATCH (n:TEST_TRANSACTION_CREATE_COMMIT) DELETE n"))
+            .begin::<()>(Some("MATCH (n:TEST_TRANSACTION_CREATE_COMMIT) DELETE n".into()))
             .unwrap()
-            .0.commit::<(), &str>(None).unwrap();
+            .0.commit::<()>(None)
+            .unwrap();
     }
 
-    // #[test]
-    // fn create_node_and_rollback() {
-    //     let headers = get_headers();
-    //
-    //     let (mut transaction, _) = Transaction::new(URL, &headers)
-    //         .with_statement("CREATE (n:TEST_TRANSACTION_CREATE_ROLLBACK { name: 'Rust', safe: true })")
-    //         .begin().unwrap();
-    //
-    //     let result = transaction
-    //         .exec("MATCH (n:TEST_TRANSACTION_CREATE_ROLLBACK) RETURN n")
-    //         .unwrap();
-    //
-    //     assert_eq!(result.data.len(), 1);
-    //
-    //     transaction.rollback().unwrap();
-    //
-    //     let (transaction, results) = Transaction::new(URL, &headers)
-    //         .with_statement("MATCH (n:TEST_TRANSACTION_CREATE_ROLLBACK) RETURN n")
-    //         .begin().unwrap();
-    //
-    //     assert_eq!(results[0].data.len(), 0);
-    //
-    //     transaction.rollback().unwrap();
-    // }
-    //
-    // #[test]
-    // fn query_open_transaction() {
-    //     let headers = get_headers();
-    //
-    //     let (mut transaction, _) = Transaction::new(URL, &headers).begin().unwrap();
-    //
-    //     let result = transaction
-    //         .exec(
-    //             "CREATE (n:TEST_TRANSACTION_QUERY_OPEN { name: 'Rust', safe: true }) RETURN n")
-    //         .unwrap();
-    //
-    //     assert_eq!(result.data.len(), 1);
-    //
-    //     transaction.rollback().unwrap();
-    // }
+    #[test]
+    fn create_node_and_rollback() {
+        let headers = get_headers();
+
+        let (mut transaction, _) = Transaction::new(URL, &headers)
+            .begin::<()>(Some("CREATE (n:TEST_TRANSACTION_CREATE_ROLLBACK { name: 'Rust', safe: true })".into()))
+            .unwrap();
+
+        let results: Vec<(String, bool)> = transaction
+            .exec("MATCH (n:TEST_TRANSACTION_CREATE_ROLLBACK) RETURN n.name, n.safe".into())
+            .unwrap();
+
+        assert_eq!(results.len(), 1);
+
+        transaction.rollback().unwrap();
+
+        let (transaction, results) = Transaction::new(URL, &headers)
+            .begin::<()>(Some("MATCH (n:TEST_TRANSACTION_CREATE_ROLLBACK) RETURN n".into()))
+            .unwrap();
+
+        assert_eq!(results.len(), 0);
+
+        transaction.rollback().unwrap();
+    }
+
+    #[test]
+    fn query_open_transaction() {
+        let headers = get_headers();
+
+        let (mut transaction, _) = Transaction::new(URL, &headers).begin::<()>(None).unwrap();
+
+        let results: Vec<(String, bool)> = transaction
+            .exec("CREATE (n:TEST_TRANSACTION_QUERY_OPEN { name: 'Rust', safe: true }) \
+                   RETURN n.name, n.safe".into())
+            .unwrap();
+
+        assert_eq!(results.len(), 1);
+
+        transaction.rollback().unwrap();
+    }
 }
