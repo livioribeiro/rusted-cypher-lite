@@ -7,37 +7,38 @@
 //!
 //! ## Execute a query
 //! ```
-//! # use rusted_cypher::{GraphClient, CypherResult};
+//! # use rusted_cypher::{GraphClient, Statement};
 //! # const URL: &'static str = "http://neo4j:neo4j@localhost:7474/db/data";
 //! let graph = GraphClient::connect(URL).unwrap();
 //!
-//! // use `Cypher::exec` when the query does not return any value
-//! graph.cypher().exec("CREATE (n:CYPHER_QUERY { value: 1 })").unwrap();
+//! // You can use return type `()` when the query does not return values
+//! graph.cypher().exec::<()>("CREATE (n:CYPHER_QUERY { value: 1 })".into()).unwrap();
 //!
-//! // use `Cypher::query` when the query returns values
-//! let result: CypherResult<(i32,)> = graph.cypher().query(
-//!     "MATCH (n:CYPHER_QUERY) RETURN n.value AS value"
+//! // Return type must be a tuple of the types of the columns returned.
+//! let results = graph.cypher().exec::<(i32,)>(
+//!     "MATCH (n:CYPHER_QUERY) RETURN n.value AS value".into()
 //! ).unwrap();
-//! # assert_eq!(result.rows().len(), 1);
+//! // You could also use `results: Vec<(i32,)>`
+//! # assert_eq!(results.len(), 1);
 //!
 //! // Iterate over the results
-//! for row in result.rows() {
+//! for row in results.iter() {
 //!     let value = row.0;
 //!     assert_eq!(value, 1);
 //! }
-//! # graph.cypher().exec("MATCH (n:CYPHER_QUERY) delete n").unwrap();
+//! # graph.cypher().exec::<()>("MATCH (n:CYPHER_QUERY) delete n".into()).unwrap();
 //! ```
 //!
 //! ## Start a transaction
-//! ```ignore
+//! ```
 //! # use rusted_cypher::GraphClient;
 //! # const URL: &'static str = "http://neo4j:neo4j@localhost:7474/db/data";
 //! # let graph = GraphClient::connect(URL).unwrap();
 //! let (transaction, results) = graph.cypher().transaction()
-//!     .with_statement("MATCH (n:TRANSACTION_CYPHER_QUERY) RETURN n")
-//!     .begin().unwrap();
+//!     .begin::<()>(Some("MATCH (n:TRANSACTION_CYPHER_QUERY) RETURN n".into()))
+//!     .unwrap();
 //!
-//! # assert_eq!(results.len(), 1);
+//! transaction.commit::<()>(None); // or `transaction.rollback()`
 //! ```
 
 pub mod result;

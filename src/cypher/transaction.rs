@@ -12,9 +12,10 @@
 //! let graph = GraphClient::connect(URL).unwrap();
 //!
 //! let mut transaction = graph.cypher().transaction();
-//! transaction.add_statement("MATCH (n:TRANSACTION) RETURN n");
 //!
-//! let (transaction, results) = transaction.begin().unwrap();
+//! let (transaction, results) = graph.cypher().transaction()
+//!     .begin::<()>(Some("MATCH (n:TRANSACTION) RETURN n".into()))
+//!     .unwrap();
 //! # transaction.rollback().unwrap();
 //! ```
 //!
@@ -25,7 +26,7 @@
 //! # const URL: &'static str = "http://neo4j:neo4j@localhost:7474/db/data";
 //! # let graph = GraphClient::connect(URL).unwrap();
 //! let (transaction, _) = graph.cypher().transaction()
-//!     .begin().unwrap();
+//!     .begin::<()>(None).unwrap();
 //! # transaction.rollback().unwrap();
 //! ```
 //!
@@ -34,17 +35,9 @@
 //! # use rusted_cypher::GraphClient;
 //! # const URL: &'static str = "http://neo4j:neo4j@localhost:7474/db/data";
 //! # let graph = GraphClient::connect(URL).unwrap();
-//! # let (mut transaction, _) = graph.cypher().transaction().begin().unwrap();
+//! # let (mut transaction, _) = graph.cypher().transaction().begin::<()>(None).unwrap();
 //! // Send a single query
-//! let result = transaction.exec("MATCH (n:TRANSACTION) RETURN n").unwrap();
-//!
-//! // Send multiple queries
-//! let results = transaction
-//!     .with_statement("MATCH (n:TRANSACTION) RETURN n")
-//!     .with_statement("MATCH (n:OTHER_TRANSACTION) RETURN n")
-//!     .send().unwrap();
-//! # assert_eq!(results.len(), 2);
-//! # transaction.rollback().unwrap();
+//! let result = transaction.exec::<()>("MATCH (n:TRANSACTION) RETURN n".into()).unwrap();
 //! ```
 //!
 //! ## Commit a transaction
@@ -52,18 +45,18 @@
 //! # use rusted_cypher::GraphClient;
 //! # const URL: &'static str = "http://neo4j:neo4j@localhost:7474/db/data";
 //! # let graph = GraphClient::connect(URL).unwrap();
-//! # let (mut transaction, _) = graph.cypher().transaction().begin().unwrap();
-//! transaction.exec("CREATE (n:TRANSACTION)").unwrap();
-//! transaction.commit().unwrap();
+//! # let (mut transaction, _) = graph.cypher().transaction().begin::<()>(None).unwrap();
+//! transaction.exec::<()>("CREATE (n:TRANSACTION)".into()).unwrap();
+//! transaction.commit::<()>(None).unwrap();
 //!
 //! // Send more statements when commiting
-//! # let (mut transaction, _) = graph.cypher().transaction().begin().unwrap();
+//! # let (mut transaction, _) = graph.cypher().transaction().begin::<()>(None).unwrap();
 //! let results = transaction
-//!     .with_statement("MATCH (n:TRANSACTION) RETURN n")
-//!     .send().unwrap();
-//! # assert_eq!(results[0].data.len(), 1);
+//!     .exec::<(::std::collections::BTreeMap<String, String>,)>("MATCH (n:TRANSACTION) RETURN n".into())
+//!     .unwrap();
+//! # assert_eq!(results.len(), 1);
 //! # transaction.rollback().unwrap();
-//! # graph.cypher().exec("MATCH (n:TRANSACTION) DELETE n").unwrap();
+//! # graph.cypher().exec::<()>("MATCH (n:TRANSACTION) DELETE n".into()).unwrap();
 //! ```
 //!
 //! ## Rollback a transaction
@@ -71,11 +64,11 @@
 //! # use rusted_cypher::GraphClient;
 //! # const URL: &'static str = "http://neo4j:neo4j@localhost:7474/db/data";
 //! # let graph = GraphClient::connect(URL).unwrap();
-//! # let (mut transaction, _) = graph.cypher().transaction().begin().unwrap();
-//! transaction.exec("CREATE (n:TRANSACTION)").unwrap();
+//! # let (mut transaction, _) = graph.cypher().transaction().begin::<()>(None).unwrap();
+//! transaction.exec::<()>("CREATE (n:TRANSACTION)".into()).unwrap();
 //! transaction.rollback().unwrap();
-//! # let result = graph.cypher().exec("MATCH (n:TRANSACTION) RETURN n").unwrap();
-//! # assert_eq!(result.data.len(), 0);
+//! # let result = graph.cypher().exec::<(::std::collections::BTreeMap<String, String>,)>("MATCH (n:TRANSACTION) RETURN n".into()).unwrap();
+//! # assert_eq!(result.len(), 0);
 //! ```
 
 use std::any::Any;
@@ -211,7 +204,7 @@ impl<'a> Transaction<'a, Created> {
         let results = result.results.pop().map(|result| {
             result.data.into_iter().map(|result| result.row).collect()
         }).unwrap_or(Vec::new());
-        
+
         Ok((transaction, results))
     }
 }

@@ -13,8 +13,7 @@
 //! extern crate rusted_cypher;
 //!
 //! use std::collections::BTreeMap;
-//! use rusted_cypher::GraphClient;
-//! use rusted_cypher::cypher::Statement;
+//! use rusted_cypher::{GraphClient, Statement};
 //!
 //! fn main() {
 //!   // Connect to the database
@@ -28,60 +27,66 @@
 //! ## Performing Queries
 //!
 //! ```
-//! # use rusted_cypher::{GraphClient, Statement, CypherResult};
+//! # use rusted_cypher::{GraphClient, Statement};
 //! # let graph = GraphClient::connect("http://neo4j:neo4j@localhost:7474/db/data").unwrap();
 //! // Statement implements From<&str>
-//! graph.cypher().exec(
-//!		"CREATE (n:LANG { name: 'Rust', level: 'low', safe: true })"
-//!	).unwrap();
+//! graph.cypher().exec::<()>(
+//!     "CREATE (n:LANG { name: 'Rust', level: 'low', safe: true })".into()
+//! ).unwrap();
 //!
-//!	let statement = Statement::new(
-//!		"CREATE (n:LANG { name: {name}, level: {level}, safe: {safe} })")
-//!		.with_param("name", "Python".to_owned())
-//!		.with_param("level", "high".to_owned())
-//!		.with_param("safe", true);
+//! let statement = Statement::new(
+//!     "CREATE (n:LANG { name: {name}, level: {level}, safe: {safe} })")
+//!     .with_param("name", "Python".to_owned())
+//!     .with_param("level", "high".to_owned())
+//!     .with_param("safe", true);
 //!
-//! graph.cypher().exec(statement).unwrap();
+//! graph.cypher().exec::<()>(statement).unwrap();
 //!
-//! let result: CypherResult<(String, String, bool)> = graph.cypher().query(
-//!     "MATCH (n:LANG) RETURN n.name, n.level, n.safe"
-//!	).unwrap();
+//! let results: Vec<(String, String, bool)> = graph.cypher().exec(
+//!     "MATCH (n:LANG) RETURN n.name, n.level, n.safe".into()
+//! ).unwrap();
 //!
-//! assert_eq!(result.rows().len(), 2);
+//! assert_eq!(results.len(), 2);
 //!
-//! for row in result.rows() {
+//! for row in results {
 //!     let ref name = row.0;
 //!     let ref level = row.1;
 //!     let safeness = row.2;
 //!     println!("name: {}, level: {}, safe: {}", name, level, safeness);
 //! }
 //!
-//! graph.cypher().exec("MATCH (n:LANG) DELETE n").unwrap();
+//! graph.cypher().exec::<()>("MATCH (n:LANG) DELETE n".into()).unwrap();
 //! ```
 //!
 //! ## With Transactions
 //!
-//! ```ignore
+//! ```
 //! # use std::collections::BTreeMap;
 //! # use rusted_cypher::{GraphClient, Statement, CypherResult};
 //! # let graph = GraphClient::connect("http://neo4j:neo4j@localhost:7474/db/data").unwrap();
-//! let transaction = graph.cypher().transaction()
-//!     .with_statement("CREATE (n:IN_TRANSACTION { name: 'Rust', level: 'low', safe: true })");
+//! let statement: Statement =
+//!     "CREATE (n:IN_TRANSACTION { name: 'Rust', level: 'low', safe: true })"
+//!     .into();
 //!
-//! let (mut transaction, results) = transaction.begin().unwrap();
-//!
-//! // Use `exec` to execute a single statement
-//! transaction.exec("CREATE (n:IN_TRANSACTION { name: 'Python', level: 'high', safe: true })")
+//! let (mut transaction, _) = graph.cypher().transaction()
+//!     .begin::<()>(Some(statement))
 //!     .unwrap();
 //!
-//! // use `add_statement` (or `with_statement`) and `send` to executes multiple statements
-//! let stmt = Statement::new("MATCH (n:IN_TRANSACTION) WHERE (n.safe = {safeness}) RETURN n")
-//!     .with_param("safeness", true);
+//! // Use `exec` to execute a single statement
+//! let statement: Statement =
+//!     "CREATE (n:IN_TRANSACTION { name: 'Python', level: 'high', safe: true })"
+//!     .into();
 //!
-//! transaction.add_statement(stmt);
-//! let results = transaction.send().unwrap();
+//! transaction.exec::<()>(statement).unwrap();
 //!
-//! assert_eq!(results[0].data.len(), 2);
+//! // Return values are tuples
+//! let statement: Statement =
+//!     "MATCH (n:IN_TRANSACTION) RETURN n.name, n.level, n.safe"
+//!     .into();
+//!
+//! let results: Vec<(String, String, bool)> = transaction.exec(statement).unwrap();
+//! // or let results = transaction::exec::<(String, String, bool)>(statement).unwrap();
+//! assert_eq!(2, results.len());
 //!
 //! transaction.rollback();
 //! ```
@@ -90,30 +95,31 @@
 //!
 //! There is a macro to help building statements
 //!
-//! ```ignore
+//! ```
 //! # #[macro_use] extern crate rusted_cypher;
-//! # use rusted_cypher::GraphClient;
-//! # use rusted_cypher::cypher::Statement;
+//! # use rusted_cypher::{GraphClient, Statement};
 //! # fn main() {
 //! # let graph = GraphClient::connect("http://neo4j:neo4j@localhost:7474/db/data").unwrap();
 //! let statement = cypher_stmt!(
 //!     "CREATE (n:WITH_MACRO { name: {name}, level: {level}, safe: {safe} })" {
-//!         "name" => "Rust",
-//!         "level" => "low",
+//!         "name" => "Rust".to_owned(),
+//!         "level" => "low".to_owned(),
 //!         "safe" => true
 //!     }
 //! );
-//! graph.cypher().exec(statement).unwrap();
+//! graph.cypher().exec::<()>(statement).unwrap();
 //!
-//! let statement = cypher_stmt!("MATCH (n:WITH_MACRO) WHERE n.name = {name} RETURN n" {
-//!     "name" => "Rust"
-//! });
+//! let statement = cypher_stmt!(
+//!     "MATCH (n:WITH_MACRO) WHERE n.name = {name} RETURN n.level, n.safe" {
+//!         "name" => "Rust".to_owned()
+//!     }
+//! );
 //!
-//! let results = graph.cypher().exec(statement).unwrap();
-//! assert_eq!(results.data.len(), 1);
+//! let results: Vec<(String, bool)> = graph.cypher().exec(statement).unwrap();
+//! assert_eq!(results.len(), 1);
 //!
 //! let statement = cypher_stmt!("MATCH (n:WITH_MACRO) DELETE n");
-//! graph.cypher().exec(statement).unwrap();
+//! graph.cypher().exec::<()>(statement).unwrap();
 //! # }
 //! ```
 
