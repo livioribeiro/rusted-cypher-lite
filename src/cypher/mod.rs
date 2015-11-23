@@ -14,7 +14,7 @@
 //! // use `Cypher::exec` when the query does not return any value
 //! graph.cypher().exec("CREATE (n:CYPHER_QUERY { value: 1 })").unwrap();
 //!
-//! // use `Cypher::query` when the query returns values 
+//! // use `Cypher::query` when the query returns values
 //! let result: CypherResult<(i32,)> = graph.cypher().query(
 //!     "MATCH (n:CYPHER_QUERY) RETURN n.value AS value"
 //! ).unwrap();
@@ -40,9 +40,9 @@
 //! # assert_eq!(results.len(), 1);
 //! ```
 
-// pub mod transaction;
-pub mod statement;
 pub mod result;
+pub mod statement;
+pub mod transaction;
 
 use std::convert::Into;
 use hyper::client::{Client, Response};
@@ -55,7 +55,7 @@ use ::json_util;
 
 use self::result::{QueryResult, ResultTrait};
 pub use self::statement::Statement;
-// pub use self::transaction::Transaction;
+pub use self::transaction::Transaction;
 pub use self::result::CypherResult;
 
 #[derive(RustcEncodable)]
@@ -67,10 +67,10 @@ fn send_query(client: &Client, endpoint: &str, headers: &Headers, statement: Opt
     -> Result<Response, GraphError>
 {
     let json_string: String;
-    
+
     if let Some(statement) = statement {
         let statements = Statements { statements: vec![statement] };
-    
+
         json_string = match json::encode(&statements) {
             Ok(value) => value,
             Err(e) => {
@@ -130,7 +130,7 @@ impl Cypher {
             headers: headers,
         }
     }
-    
+
     fn send_query<T: Decodable, S: Into<Statement>>(&self, statement: S)
         -> Result<QueryResult<T>, GraphError>
     {
@@ -144,10 +144,10 @@ impl Cypher {
         if result.errors().len() > 0 {
             return Err(GraphError::new_neo4j_error(result.errors().clone()))
         }
-        
+
         Ok(result)
     }
-    
+
     /// Executes the given `Statement`, returning the results
     ///
     /// Parameter can be anything that implements `Into<Statement>`, `&str` or `Statement` itself
@@ -158,18 +158,18 @@ impl Cypher {
 
         result.results.pop().ok_or(GraphError::new("No results returned from server"))
     }
-    
+
     /// Execute the given statement
     pub fn exec<S: Into<Statement>>(&self, statement: S) -> Result<(), GraphError> {
         let _: QueryResult<()> = try!(self.send_query(statement));
-        
+
         Ok(())
     }
 
-    // /// Creates a new `Transaction`
-    // pub fn transaction(&self) -> Transaction<self::transaction::Created> {
-    //     Transaction::new(&self.endpoint.to_string(), &self.headers)
-    // }
+    /// Creates a new `Transaction`
+    pub fn transaction(&self) -> Transaction<self::transaction::Created> {
+        Transaction::new(&self.endpoint.to_string(), &self.headers)
+    }
 }
 
 #[cfg(test)]
@@ -228,19 +228,19 @@ mod tests {
     fn query_with_complex_param() {
         use std::collections::BTreeMap;
         use rustc_serialize::json::{Json, ToJson};
-        
+
         #[derive(Clone, RustcEncodable, RustcDecodable)]
         struct ComplexType {
             name: String,
             value: i32,
         }
-        
+
         impl ToJson for ComplexType {
             fn to_json(&self) -> Json {
                 let mut map: BTreeMap<String, Json> = BTreeMap::new();
                 map.insert("name".to_owned(), Json::String(self.name.clone()));
                 map.insert("value".to_owned(), Json::I64(self.value as i64));
-                
+
                 Json::Object(map)
             }
         }

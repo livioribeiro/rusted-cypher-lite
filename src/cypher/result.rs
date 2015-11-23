@@ -8,10 +8,10 @@ pub trait ResultTrait<T: Decodable> {
     fn errors(&self) -> &Vec<Neo4jError>;
 }
 
-#[derive(Debug, PartialEq, RustcDecodable)]
+#[derive(Debug, RustcDecodable)]
 pub struct QueryResult<T: Decodable> {
     pub results: Vec<CypherResult<T>>,
-    errors: Vec<Neo4jError>,
+    pub errors: Vec<Neo4jError>,
 }
 
 impl<T: Decodable> ResultTrait<T> for QueryResult<T> {
@@ -25,17 +25,17 @@ impl<T: Decodable> ResultTrait<T> for QueryResult<T> {
 }
 
 /// Holds the result of a cypher query
-#[derive(Clone, Debug, PartialEq, RustcDecodable)]
+#[derive(Clone, Debug, RustcDecodable)]
 pub struct CypherResult<T: Decodable> {
-    columns: Vec<String>,
-    data: Vec<RowResult<T>>,
+    pub columns: Vec<String>,
+    pub data: Vec<RowResult<T>>,
 }
 
 impl<T: Decodable> CypherResult<T> {
     pub fn columns(&self) -> &Vec<String> {
         &self.columns
     }
-    
+
     /// Returns an iterator over the rows of the result
     pub fn rows(&self) -> &Vec<RowResult<T>> {
         &self.data
@@ -43,9 +43,9 @@ impl<T: Decodable> CypherResult<T> {
 }
 
 /// Holds a single row of the result of a cypher query
-#[derive(Clone, Debug, PartialEq, RustcDecodable)]
+#[derive(Clone, Debug, RustcDecodable)]
 pub struct RowResult<T: Decodable> {
-    row: T,
+    pub row: T,
 }
 
 impl<T: Decodable> RowResult<T> {

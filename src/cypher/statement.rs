@@ -108,6 +108,12 @@ impl<'a> From<&'a str> for Statement {
     }
 }
 
+impl From<String> for Statement {
+    fn from(stmt: String) -> Self {
+        Statement::new(&stmt)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
